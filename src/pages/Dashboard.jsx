@@ -34,9 +34,16 @@ const activityColors = {
 };
 
 export default function Dashboard() {
-  const { user } = useApp();
+  const { user, projects = [] } = useApp();
   const navigate = useNavigate();
-  const recentProjects = mockProjects.slice(0, 4);
+  const recentProjects = projects.slice(0, 4);
+
+  const completedProjects = projects.filter(p => p.status === 'completed');
+  const validWeedProjects = projects.filter(p => p.weedCoverage != null);
+  const avgWeedCoverage = validWeedProjects.length > 0
+    ? (validWeedProjects.reduce((acc, p) => acc + Number(p.weedCoverage), 0) / validWeedProjects.length).toFixed(1)
+    : null;
+  const totalImages = projects.reduce((acc, p) => acc + (p.images || 0), 0);
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -64,30 +71,22 @@ export default function Dashboard() {
       <div className="stats-grid" style={{ marginBottom: 28 }}>
         <StatCard
           label="Total Projects"
-          value={mockDashboardStats.totalProjects}
-          change={12}
-          changeLabel=" vs last month"
+          value={projects.length}
           icon={FolderKanban}
         />
         <StatCard
           label="Images Analyzed"
-          value={mockDashboardStats.imagesAnalyzed}
-          change={8}
-          changeLabel=" this week"
+          value={totalImages}
           icon={Image}
         />
         <StatCard
           label="Fields Processed"
-          value={mockDashboardStats.fieldsProcessed}
-          change={25}
-          changeLabel=" this month"
+          value={completedProjects.length}
           icon={Layers}
         />
         <StatCard
           label="Avg Weed Coverage"
-          value={`${mockDashboardStats.avgWeedCoverage}%`}
-          change={-3.2}
-          changeLabel=" improvement"
+          value={avgWeedCoverage ? `${avgWeedCoverage}%` : '—'}
           icon={TrendingDown}
         />
       </div>
@@ -117,44 +116,55 @@ export default function Dashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {recentProjects.map(p => {
-                    const sc = statusConfig[p.status];
-                    return (
-                      <tr key={p.id}>
-                        <td>
-                          <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.name}</div>
-                          <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.fieldName}</div>
-                        </td>
-                        <td><Badge variant={sc.variant} dot>{sc.label}</Badge></td>
-                        <td style={{ color: 'var(--text-secondary)' }}>{p.images || '—'}</td>
-                        <td>
-                          {p.weedCoverage != null ? (
-                            <span style={{
-                              color: p.weedCoverage > 20 ? 'var(--error)' : p.weedCoverage > 12 ? 'var(--warning)' : 'var(--lime)',
-                              fontWeight: 600
-                            }}>
-                              {p.weedCoverage}%
-                            </span>
-                          ) : '—'}
-                        </td>
-                        <td>
-                          {p.analysisId ? (
-                            <Link
-                              to={`/analysis/${p.analysisId}`}
-                              className="btn btn-ghost btn-sm"
-                              style={{ color: 'var(--lime)' }}
-                            >
-                              <ExternalLink size={13} />
-                            </Link>
-                          ) : (
-                            <Link to={`/projects/${p.id}`} className="btn btn-ghost btn-sm">
-                              <ExternalLink size={13} />
-                            </Link>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
+                  {recentProjects.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} style={{ textAlign: 'center', padding: '36px 16px', color: 'var(--text-muted)' }}>
+                        No projects created yet.{' '}
+                        <Link to="/analysis/new" style={{ color: 'var(--lime)', textDecoration: 'underline', marginLeft: 4 }}>
+                          Create your first field analysis →
+                        </Link>
+                      </td>
+                    </tr>
+                  ) : (
+                    recentProjects.map(p => {
+                      const sc = statusConfig[p.status] || { label: p.status, variant: 'muted' };
+                      return (
+                        <tr key={p.id}>
+                          <td>
+                            <div style={{ fontWeight: 500, marginBottom: 2 }}>{p.name}</div>
+                            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{p.fieldName}</div>
+                          </td>
+                          <td><Badge variant={sc.variant} dot>{sc.label}</Badge></td>
+                          <td style={{ color: 'var(--text-secondary)' }}>{p.images || '—'}</td>
+                          <td>
+                            {p.weedCoverage != null ? (
+                              <span style={{
+                                color: p.weedCoverage > 20 ? 'var(--error)' : p.weedCoverage > 12 ? 'var(--warning)' : 'var(--lime)',
+                                fontWeight: 600
+                              }}>
+                                {p.weedCoverage}%
+                              </span>
+                            ) : '—'}
+                          </td>
+                          <td>
+                            {p.analysisId ? (
+                              <Link
+                                to={`/analysis/${p.analysisId}`}
+                                className="btn btn-ghost btn-sm"
+                                style={{ color: 'var(--lime)' }}
+                              >
+                                <ExternalLink size={13} />
+                              </Link>
+                            ) : (
+                              <Link to={`/projects/${p.id}`} className="btn btn-ghost btn-sm">
+                                <ExternalLink size={13} />
+                              </Link>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
@@ -164,41 +174,50 @@ export default function Dashboard() {
           <div className="card">
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
               <h2 style={{ fontSize: '1.0625rem', fontWeight: 700 }}>Weed Coverage Trend</h2>
-              <span className="badge badge-success" style={{ fontSize: '0.6875rem' }}>↓ 3.2% improvement</span>
+              {mockWeedTrend.length > 0 && (
+                <span className="badge badge-success" style={{ fontSize: '0.6875rem' }}>Trend available</span>
+              )}
             </div>
-            <div className="chart-container">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={mockWeedTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="weedGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#84cc16" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#84cc16" stopOpacity={0.02} />
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" stroke="var(--border-dim)" vertical={false} />
-                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} unit="%" />
-                  <Tooltip
-                    contentStyle={{
-                      background: 'var(--bg-card)',
-                      border: '1px solid var(--border)',
-                      borderRadius: '8px',
-                      fontSize: '0.8125rem',
-                    }}
-                    formatter={(v) => [`${v}%`, 'Weed Coverage']}
-                  />
-                  <Area
-                    type="monotone"
-                    dataKey="coverage"
-                    stroke="#84cc16"
-                    strokeWidth={2.5}
-                    fill="url(#weedGrad)"
-                    dot={{ fill: '#84cc16', strokeWidth: 0, r: 4 }}
-                    activeDot={{ r: 6, fill: '#84cc16' }}
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
+            {mockWeedTrend.length > 0 ? (
+              <div className="chart-container">
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={mockWeedTrend} margin={{ top: 5, right: 5, bottom: 0, left: -20 }}>
+                    <defs>
+                      <linearGradient id="weedGrad" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%"  stopColor="#84cc16" stopOpacity={0.3} />
+                        <stop offset="95%" stopColor="#84cc16" stopOpacity={0.02} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border-dim)" vertical={false} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} unit="%" />
+                    <Tooltip
+                      contentStyle={{
+                        background: 'var(--bg-card)',
+                        border: '1px solid var(--border)',
+                        borderRadius: '8px',
+                        fontSize: '0.8125rem',
+                      }}
+                      formatter={(v) => [`${v}%`, 'Weed Coverage']}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="coverage"
+                      stroke="#84cc16"
+                      strokeWidth={2.5}
+                      fill="url(#weedGrad)"
+                      dot={{ fill: '#84cc16', strokeWidth: 0, r: 4 }}
+                      activeDot={{ r: 6, fill: '#84cc16' }}
+                    />
+                  </AreaChart>
+                </ResponsiveContainer>
+              </div>
+            ) : (
+              <div style={{ height: 200, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.875rem', gap: 10 }}>
+                <BarChart2 size={32} style={{ opacity: 0.35 }} />
+                <span>No historical weed trend recorded yet. Data will appear after field surveys.</span>
+              </div>
+            )}
           </div>
         </div>
 
@@ -224,33 +243,39 @@ export default function Dashboard() {
           <div className="card">
             <h2 style={{ fontSize: '1.0625rem', fontWeight: 700, marginBottom: 20 }}>Recent Activity</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-              {mockActivity.map(act => {
-                const Icon = activityIcons[act.type] || Info;
-                return (
-                  <div key={act.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
-                    <div style={{
-                      width: 32,
-                      height: 32,
-                      borderRadius: '50%',
-                      background: 'var(--lime-dim)',
-                      border: '1px solid var(--border-dim)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      flexShrink: 0,
-                    }}>
-                      <Icon size={14} style={{ color: activityColors[act.type] }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: 2 }}>{act.action}</div>
-                      <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 2 }}>{act.project}</div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                        <Clock size={11} /> {act.time}
+              {mockActivity.length > 0 ? (
+                mockActivity.map(act => {
+                  const Icon = activityIcons[act.type] || Info;
+                  return (
+                    <div key={act.id} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
+                      <div style={{
+                        width: 32,
+                        height: 32,
+                        borderRadius: '50%',
+                        background: 'var(--lime-dim)',
+                        border: '1px solid var(--border-dim)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                      }}>
+                        <Icon size={14} style={{ color: activityColors[act.type] }} />
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '0.875rem', fontWeight: 500, marginBottom: 2 }}>{act.action}</div>
+                        <div style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 2 }}>{act.project}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <Clock size={11} /> {act.time}
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                <div style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '24px 0' }}>
+                  No recent activity. Completed actions and pipeline runs will appear here.
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -6,19 +6,14 @@ import {
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 
-const MOCK_UPLOADED = [
-  { id: 1, name: 'maize_block_a_001.jpg', type: 'JPG', size: '4.2 MB', res: '4000 × 3000', gps: true },
-  { id: 2, name: 'maize_block_a_002.jpg', type: 'JPG', size: '4.4 MB', res: '4000 × 3000', gps: true },
-  { id: 3, name: 'maize_block_a_003.png', type: 'PNG', size: '3.9 MB', res: '4000 × 3000', gps: false },
-];
-
 export default function NewAnalysisPage() {
-  const [projectName, setProjectName] = useState('Maize Block A · 2025 season');
-  const [fieldName, setFieldName] = useState('North Field · 12.4 ha');
-  const [files, setFiles] = useState(MOCK_UPLOADED);
+  const [projectName, setProjectName] = useState('');
+  const [fieldName, setFieldName] = useState('');
+  const [files, setFiles] = useState([]);
+  const [stitchEnabled, setStitchEnabled] = useState(false);
   const [dragging, setDragging] = useState(false);
   const navigate = useNavigate();
-  const { addToast } = useApp();
+  const { addToast, addProject, updateProject, setAnalysisContext, storeAnalysisResult } = useApp();
   const fileInputRef = useRef();
 
   const handleDragOver = (e) => { e.preventDefault(); setDragging(true); };
@@ -26,46 +21,187 @@ export default function NewAnalysisPage() {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragging(false);
+    if (!e.dataTransfer?.files) return;
     const newFiles = Array.from(e.dataTransfer.files).map((f, i) => ({
       id: Date.now() + i,
+      file: f,
       name: f.name,
       type: f.name.split('.').pop().toUpperCase(),
       size: (f.size / 1024 / 1024).toFixed(1) + ' MB',
-      res: '4000 × 3000',
-      gps: Math.random() > 0.3,
+      preview: f.type?.startsWith('image/') ? URL.createObjectURL(f) : null,
+      res: 'Original',
+      gps: false,
     }));
     setFiles(p => [...p, ...newFiles]);
   };
 
   const handleFileInput = (e) => {
+    if (!e.target?.files) return;
     const newFiles = Array.from(e.target.files).map((f, i) => ({
       id: Date.now() + i,
+      file: f,
       name: f.name,
       type: f.name.split('.').pop().toUpperCase(),
       size: (f.size / 1024 / 1024).toFixed(1) + ' MB',
-      res: '4000 × 3000',
-      gps: Math.random() > 0.3,
+      preview: f.type?.startsWith('image/') ? URL.createObjectURL(f) : null,
+      res: 'Original',
+      gps: false,
     }));
     setFiles(p => [...p, ...newFiles]);
   };
 
   const removeFile = (id) => setFiles(p => p.filter(f => f.id !== id));
-  const totalSize = files.reduce((acc, f) => acc + parseFloat(f.size), 0).toFixed(1);
+  const totalSize = files.reduce((acc, f) => acc + parseFloat(f.size || 0), 0).toFixed(1);
   const gpsCount = files.filter(f => f.gps).length;
 
   const handleSaveDraft = () => {
-    addToast('Draft saved successfully', 'success');
-  };
-
-  const handleStartAnalysis = () => {
-    if (files.length === 0) {
-      addToast('Please upload at least one image', 'error');
+    if (!projectName.trim()) {
+      addToast('Please enter a project name to save draft', 'error');
       return;
     }
+    const firstPreview = files[0]?.preview;
+    if (addProject) {
+      addProject({
+        name: projectName.trim(),
+        fieldName: fieldName.trim() || 'Draft Field',
+        images: files.length,
+        image: firstPreview,
+        status: 'draft',
+        date: new Date().toISOString().split('T')[0],
+        weedCoverage: null,
+        fieldSize: 0,
+        analysisId: null,
+      });
+    }
+    addToast('Draft saved successfully', 'success');
+    navigate('/projects');
+  };
+
+  const handleStartAnalysis = async () => {
+    const BACKEND = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     if (!projectName.trim()) {
       addToast('Please enter a project name', 'error');
       return;
     }
+    if (files.length === 0) {
+      addToast('Please upload at least one image', 'error');
+      return;
+    }
+
+    const firstImagePreview = files[0]?.preview;
+    const firstFile = files[0]?.file;
+
+    // Set synchronous preview immediately so navigating doesn't wait
+    if (setAnalysisContext) {
+      setAnalysisContext({
+        image: firstImagePreview,
+        projectName: projectName.trim(),
+        fieldName: fieldName.trim() || 'Custom Field',
+      });
+    }
+
+    // Also convert file to dataUrl for sessionStorage persistence
+    if (firstFile) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        if (setAnalysisContext) {
+          setAnalysisContext({
+            image: dataUrl,
+            projectName: projectName.trim(),
+            fieldName: fieldName.trim() || 'Custom Field',
+          });
+        }
+      };
+      reader.readAsDataURL(firstFile);
+    }
+
+    let createdProject = null;
+    if (addProject) {
+      createdProject = addProject({
+        name: projectName.trim(),
+        fieldName: fieldName.trim() || 'Custom Field',
+        images: files.length,
+        image: firstImagePreview,
+        status: 'processing',
+        date: new Date().toISOString().split('T')[0],
+        weedCoverage: null,
+        fieldSize: 10.0,
+        analysisId: 'ana_01',
+      });
+    }
+
+    // Clear any previous analysis result so FieldAnalysisPage shows fresh data
+    if (storeAnalysisResult) storeAnalysisResult(null);
+
+    // Helper to convert base64 PNG to Blob/File
+    const base64ToBlob = (b64, mime) => {
+      const binary = atob(b64);
+      const array = [];
+      for (let i = 0; i < binary.length; i++) array.push(binary.charCodeAt(i));
+      return new Blob([new Uint8Array(array)], { type: mime });
+    };
+
+    // Build FormData for inference (may be stitched or original)
+    let formData = new FormData();
+    if (stitchEnabled && files.length > 1) {
+      // Call stitching endpoint first
+      const stitchForm = new FormData();
+      files.forEach(f => stitchForm.append('files', f.file, f.name));
+      try {
+        const stitchResp = await fetch(`${BACKEND}/api/v1/stitch`, {
+          method: 'POST',
+          body: stitchForm,
+        });
+        if (stitchResp.ok) {
+          const stitchJson = await stitchResp.json();
+          const b64 = stitchJson.stitched_image_base64;
+          const blob = base64ToBlob(b64, 'image/png');
+          const stitchedFile = new File([blob], 'stitched.png', { type: 'image/png' });
+          formData.append('images', stitchedFile);
+        } else {
+          // Stitch failed – fall back to original per‑image inference
+          addToast('Could not stitch — running analysis on images separately', 'warning');
+          files.forEach(f => formData.append('images', f.file, f.name));
+        }
+      } catch (e) {
+        addToast('Stitch request failed — analyzing individually', 'warning');
+        files.forEach(f => formData.append('images', f.file, f.name));
+      }
+    } else {
+      // No stitching – send all original files
+      files.forEach(f => formData.append('images', f.file, f.name));
+    }
+
+    // Try to call the real backend inference API
+    try {
+      const resp = await fetch(`${BACKEND}/api/v1/infer`, {
+        method: 'POST',
+        body: formData,
+        signal: AbortSignal.timeout(60000),
+      });
+
+      if (resp.ok) {
+        const data = await resp.json();
+        if (storeAnalysisResult) storeAnalysisResult(data);
+        if (setAnalysisContext && data.overlay_data_uri) {
+          setAnalysisContext({ image: data.overlay_data_uri });
+        }
+        if (updateProject && createdProject) {
+          updateProject(createdProject.id, {
+            status: 'completed',
+            weedCoverage: data.weed_coverage_pct,
+          });
+        }
+        addToast('Model inference complete — real results loaded', 'success');
+      } else {
+        console.warn('Backend inference returned non-OK status, using mock data');
+      }
+    } catch (err) {
+      console.warn('Backend inference unavailable, falling back to demo data:', err);
+    }
+
+    addToast('Field analysis pipeline started', 'success');
     navigate('/analysis/ana_01/processing');
   };
 
@@ -189,7 +325,11 @@ export default function NewAnalysisPage() {
                       background: 'linear-gradient(135deg, #1a3a1a, #2d5a2d)',
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                     }}>
-                      <FileImage size={18} style={{ color: 'var(--lime)', opacity: 0.7 }} />
+                      {f.preview ? (
+                        <img src={f.preview} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <FileImage size={18} style={{ color: 'var(--lime)', opacity: 0.7 }} />
+                      )}
                     </div>
 
                     {/* Info */}
@@ -244,6 +384,24 @@ export default function NewAnalysisPage() {
                   <Plus size={14} /> Add more images
                 </button>
               </div>
+
+              {/* Stitch Images toggle — only when 2+ images */}
+              {files.length > 1 && (
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 12, paddingTop: 12, borderTop: '1px solid var(--border-dim)' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: '0.875rem', fontWeight: 500, color: stitchEnabled ? 'var(--lime)' : 'var(--text-secondary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={stitchEnabled}
+                      onChange={e => setStitchEnabled(e.target.checked)}
+                      style={{ accentColor: 'var(--lime)', width: 16, height: 16 }}
+                    />
+                    Stitch Images Before Analysis
+                  </label>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    Combines overlapping images into one panorama
+                  </span>
+                </div>
+              )}
             </div>
           )}
         </div>

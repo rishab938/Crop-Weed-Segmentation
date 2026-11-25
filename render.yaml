@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: crop-weed-ai
+    runtime: python
+    region: oregon
+    plan: free
+    buildCommand: "chmod +x render-build.sh && ./render-build.sh"
+    startCommand: "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11.9"
+      - key: NODE_VERSION
+        value: "20.11.0"
+      - key: APP_ENV
+        value: production
+      - key: DATABASE_URL
+        value: "sqlite+aiosqlite:///./cropweedai.db"
+      - key: UNET_CHECKPOINT_PATH
+        value: ./app/ml/unet_best.pt
+      - key: UNET_NUM_CLASSES
+        value: "3"
+      - key: UNET_INPUT_SIZE
+        value: "512"
+      - key: UNET_DEVICE
+        value: cpu
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GROQ_API_KEY
+        sync: false  # set manually in Render dashboard

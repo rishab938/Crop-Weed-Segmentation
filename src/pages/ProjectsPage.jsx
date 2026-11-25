@@ -5,7 +5,7 @@ import {
   Image, Layers, ArrowRight, SlidersHorizontal
 } from 'lucide-react';
 import { Badge } from '../components/ui/Components';
-import { mockProjects } from '../data/mockData';
+import { useApp } from '../context/AppContext';
 
 const statusConfig = {
   completed: { label: 'Completed', variant: 'success' },
@@ -17,12 +17,13 @@ const statusConfig = {
 const ALL_STATUSES = ['All', 'Completed', 'Processing', 'Draft', 'Failed'];
 
 export default function ProjectsPage() {
+  const { projects = [] } = useApp();
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const [viewMode, setViewMode] = useState('grid'); // grid | list
   const navigate = useNavigate();
 
-  const filtered = mockProjects.filter(p => {
+  const filtered = projects.filter(p => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
                         p.fieldName.toLowerCase().includes(search.toLowerCase());
     const matchStatus = statusFilter === 'All' ||
@@ -42,7 +43,7 @@ export default function ProjectsPage() {
         <div>
           <h1 className="page-title">Projects</h1>
           <p className="page-subtitle">
-            {mockProjects.length} projects · {mockProjects.filter(p => p.status === 'completed').length} completed
+            {projects.length} projects · {projects.filter(p => p.status === 'completed').length} completed
           </p>
         </div>
         <Link to="/analysis/new" className="btn btn-primary">
@@ -132,10 +133,10 @@ export default function ProjectsPage() {
                   <div style={{
                     position: 'absolute',
                     inset: 0,
-                    backgroundImage: 'url(https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=50)',
+                    backgroundImage: `url(${p.image || 'https://images.unsplash.com/photo-1500382017468-9049fed747ef?w=400&q=50'})`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
-                    opacity: 0.45,
+                    opacity: 0.65,
                   }} />
                   <div style={{
                     position: 'absolute',

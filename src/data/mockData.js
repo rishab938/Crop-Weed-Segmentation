@@ -9,74 +9,7 @@ export const mockUser = {
   plan: 'Pro',
 };
 
-export const mockProjects = [
-  {
-    id: 'proj_01',
-    name: 'Maize Block A — 2025 season',
-    fieldName: 'North Field · 12.4 ha',
-    status: 'completed',
-    date: '2025-03-12',
-    images: 6,
-    weedCoverage: 18.4,
-    fieldSize: 12.4,
-    analysisId: 'ana_01',
-  },
-  {
-    id: 'proj_02',
-    name: 'Wheat South — Spring Survey',
-    fieldName: 'South Block · 8.7 ha',
-    status: 'completed',
-    date: '2025-02-28',
-    images: 9,
-    weedCoverage: 12.1,
-    fieldSize: 8.7,
-    analysisId: 'ana_02',
-  },
-  {
-    id: 'proj_03',
-    name: 'Soybean Patch B',
-    fieldName: 'East Field · 5.2 ha',
-    status: 'processing',
-    date: '2025-03-20',
-    images: 4,
-    weedCoverage: null,
-    fieldSize: 5.2,
-    analysisId: 'ana_03',
-  },
-  {
-    id: 'proj_04',
-    name: 'Corn Zone 3 — Early Season',
-    fieldName: 'West Corridor · 18.0 ha',
-    status: 'draft',
-    date: '2025-03-25',
-    images: 0,
-    weedCoverage: null,
-    fieldSize: 18.0,
-    analysisId: null,
-  },
-  {
-    id: 'proj_05',
-    name: 'Barley Survey — Field 7',
-    fieldName: 'Field 7 · 6.8 ha',
-    status: 'failed',
-    date: '2025-03-18',
-    images: 3,
-    weedCoverage: null,
-    fieldSize: 6.8,
-    analysisId: null,
-  },
-  {
-    id: 'proj_06',
-    name: 'Rice Paddock — Season 1',
-    fieldName: 'Paddock A · 4.1 ha',
-    status: 'completed',
-    date: '2025-01-15',
-    images: 7,
-    weedCoverage: 8.9,
-    fieldSize: 4.1,
-    analysisId: 'ana_04',
-  },
-];
+export const mockProjects = [];
 
 export const mockAnalysis = {
   ana_01: {
@@ -139,62 +72,17 @@ export const mockTreatment = {
   estimatedTravel: '9 min at 8 km/h',
 };
 
-export const mockReports = [
-  {
-    id: 'rep_01',
-    projectName: 'Maize Block A — 2025 season',
-    fieldName: 'North Field',
-    date: '2025-03-12',
-    weedCoverage: 18.4,
-    status: 'ready',
-    analysisId: 'ana_01',
-  },
-  {
-    id: 'rep_02',
-    projectName: 'Wheat South — Spring Survey',
-    fieldName: 'South Block',
-    date: '2025-02-28',
-    weedCoverage: 12.1,
-    status: 'ready',
-    analysisId: 'ana_02',
-  },
-  {
-    id: 'rep_03',
-    projectName: 'Rice Paddock — Season 1',
-    fieldName: 'Paddock A',
-    date: '2025-01-15',
-    weedCoverage: 8.9,
-    status: 'ready',
-    analysisId: 'ana_04',
-  },
-];
+export const mockReports = [];
 
-export const mockWeedTrend = [
-  { month: 'Oct', coverage: 22 },
-  { month: 'Nov', coverage: 19 },
-  { month: 'Dec', coverage: 25 },
-  { month: 'Jan', coverage: 16 },
-  { month: 'Feb', coverage: 12 },
-  { month: 'Mar', coverage: 18 },
-];
+export const mockWeedTrend = [];
 
-export const mockActivity = [
-  { id: 1, action: 'Analysis completed',    project: 'Maize Block A',     time: '2 hours ago', type: 'success' },
-  { id: 2, action: 'Treatment map generated', project: 'Maize Block A',   time: '2 hours ago', type: 'success' },
-  { id: 3, action: 'Processing started',    project: 'Soybean Patch B',   time: '3 hours ago', type: 'info' },
-  { id: 4, action: 'Report downloaded',     project: 'Wheat South',       time: 'Yesterday',   type: 'info' },
-  { id: 5, action: 'Pipeline failed',       project: 'Barley Survey',     time: '2 days ago',  type: 'error' },
-];
+export const mockActivity = [];
 
 export const mockDashboardStats = {
-  totalProjects: 6,
-  imagesAnalyzed: 142,
-  fieldsProcessed: 4,
-  avgWeedCoverage: 13.1,
+  totalProjects: 0,
+  imagesAnalyzed: 0,
+  fieldsProcessed: 0,
+  avgWeedCoverage: 0,
 };
 
-export const mockNotifications = [
-  { id: 1, text: 'Soybean Patch B analysis is 67% complete', time: '10 min ago', read: false },
-  { id: 2, text: 'Maize Block A report is ready for download', time: '2 hrs ago', read: false },
-  { id: 3, text: 'Barley Survey pipeline failed at Field Map stage', time: 'Yesterday', read: true },
-];
+export const mockNotifications = [];

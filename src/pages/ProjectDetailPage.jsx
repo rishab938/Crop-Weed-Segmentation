@@ -12,9 +12,19 @@ import { Badge, StatCard } from '../components/ui/Components';
 export function ProjectDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToast } = useApp();
+  const { addToast, activeImage, projects = [], updateProject } = useApp();
 
-  const project = mockProjects.find(p => p.id === id) || mockProjects[0];
+  const project = projects.find(p => p.id === id) || {
+    id: id || 'proj_demo',
+    name: 'Field Project',
+    fieldName: 'Field Survey',
+    status: 'draft',
+    date: new Date().toISOString().split('T')[0],
+    images: 0,
+    weedCoverage: null,
+    fieldSize: 0,
+    analysisId: null,
+  };
   const analysis = project.analysisId ? mockAnalysis[project.analysisId] : null;
 
   return (
@@ -51,6 +61,20 @@ export function ProjectDetailPage() {
 
         {/* Action Buttons based on status */}
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+          {project.status !== 'completed' && (
+            <button
+              className="btn btn-secondary"
+              onClick={() => {
+                if (updateProject) {
+                  updateProject(project.id, { status: 'completed' });
+                  addToast(`Project marked as Completed!`, 'success');
+                }
+              }}
+            >
+              <CheckCircle2 size={16} color="var(--lime)" /> Mark Completed
+            </button>
+          )}
+
           {project.status === 'completed' && (
             <>
               <button
@@ -127,18 +151,18 @@ export function ProjectDetailPage() {
         {/* Left: Survey Imagery & Orthomosaic Preview */}
         <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600 }}>Drone Orthomosaic & Survey Frames</h3>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{project.images} frames captured</span>
+            <h3 style={{ margin: 0, fontSize: '1.125rem', fontWeight: 600 }}>Field Survey Imagery</h3>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>{project.images || 1} frame(s) analyzed</span>
           </div>
 
-          <div style={{ position: 'relative', height: 280, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid var(--border)' }}>
+          <div style={{ position: 'relative', height: 280, borderRadius: 'var(--r-md)', overflow: 'hidden', border: '1px solid var(--border)', background: '#070f06' }}>
             <img
-              src="https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80"
-              alt="Field Orthomosaic"
-              style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              src={project.image || activeImage || "https://images.unsplash.com/photo-1500382017468-9049fed747ef?auto=format&fit=crop&w=1200&q=80"}
+              alt="Field Survey"
+              style={{ width: '100%', height: '100%', objectFit: 'contain' }}
             />
             <div style={{ position: 'absolute', bottom: 12, left: 12, background: 'rgba(11,18,9,0.85)', backdropFilter: 'blur(6px)', padding: '6px 12px', borderRadius: 6, fontSize: '0.75rem', color: 'white' }}>
-              Orthomosaic composite · 1.8 cm / px GSD
+              U-Net Deep Learning Precision Scan
             </div>
           </div>
 

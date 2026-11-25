@@ -10,16 +10,119 @@ export function AppProvider({ children }) {
 
   const [user, setUser] = useState(null);
   const [isAuthenticated, setIsAuthenticated] = useState(() => {
-    const auth = localStorage.getItem('cw-auth');
-    return auth === null ? true : auth === 'true';
+    // Default to false — users must explicitly log in.
+    // Landing page → Login → Dashboard is the correct flow.
+    return localStorage.getItem('cw-auth') === 'true';
   });
 
   const [toasts, setToasts] = useState([]);
-  const [notifications, setNotifications] = useState([
-    { id: 1, text: 'Soybean Patch B analysis is 67% complete', time: '10 min ago', read: false },
-    { id: 2, text: 'Maize Block A report is ready for download', time: '2 hrs ago', read: false },
-    { id: 3, text: 'Barley Survey pipeline failed at Field Map stage', time: 'Yesterday', read: true },
-  ]);
+  const [notifications, setNotifications] = useState([]);
+  const [projects, setProjects] = useState(() => {
+    try {
+      const saved = localStorage.getItem('cw-projects');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const addProject = (projectData) => {
+    const newProject = {
+      id: `proj_${Date.now()}`,
+      status: 'processing',
+      date: new Date().toISOString().split('T')[0],
+      images: 0,
+      weedCoverage: null,
+      fieldSize: 10.0,
+      analysisId: 'ana_01',
+      ...projectData,
+    };
+    setProjects(prev => {
+      const updated = [newProject, ...prev];
+      try {
+        localStorage.setItem('cw-projects', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to store project', e);
+      }
+      return updated;
+    });
+    return newProject;
+  };
+
+  const removeProject = (id) => {
+    setProjects(prev => {
+      const updated = prev.filter(p => p.id !== id);
+      try {
+        localStorage.setItem('cw-projects', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to remove project', e);
+      }
+      return updated;
+    });
+  };
+
+  const updateProject = (id, updates) => {
+    setProjects(prev => {
+      const updated = prev.map(p => {
+        if (p.id === id || p.analysisId === id || (!id && prev.indexOf(p) === 0)) {
+          return { ...p, ...updates };
+        }
+        return p;
+      });
+      try {
+        localStorage.setItem('cw-projects', JSON.stringify(updated));
+      } catch (e) {
+        console.error('Failed to update project', e);
+      }
+      return updated;
+    });
+  };
+
+  const [activeImage, setActiveImage] = useState(() => {
+    return sessionStorage.getItem('cw-active-image') || null;
+  });
+  const [activeProjectName, setActiveProjectName] = useState(() => {
+    return sessionStorage.getItem('cw-active-project-name') || '';
+  });
+  const [activeFieldName, setActiveFieldName] = useState(() => {
+    return sessionStorage.getItem('cw-active-field-name') || '';
+  });
+
+  // Real model analysis results — populated when the backend runs inference
+  const [analysisResult, setAnalysisResult] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('cw-analysis-result');
+      return saved ? JSON.parse(saved) : null;
+    } catch { return null; }
+  });
+
+  const storeAnalysisResult = (result) => {
+    setAnalysisResult(result);
+    try {
+      if (result) sessionStorage.setItem('cw-analysis-result', JSON.stringify(result));
+      else sessionStorage.removeItem('cw-analysis-result');
+    } catch (e) { console.warn('Could not persist analysis result', e); }
+  };
+
+  const setAnalysisContext = ({ image, projectName, fieldName }) => {
+    if (image !== undefined) {
+      setActiveImage(image);
+      try {
+        if (image) sessionStorage.setItem('cw-active-image', image);
+        else sessionStorage.removeItem('cw-active-image');
+      } catch (e) {
+        console.warn('Storage quota warning', e);
+      }
+    }
+    if (projectName !== undefined) {
+      setActiveProjectName(projectName);
+      try { sessionStorage.setItem('cw-active-project-name', projectName); } catch (e) {}
+    }
+    if (fieldName !== undefined) {
+      setActiveFieldName(fieldName);
+      try { sessionStorage.setItem('cw-active-field-name', fieldName); } catch (e) {}
+    }
+  };
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
@@ -91,6 +194,20 @@ export function AppProvider({ children }) {
       notifications,
       markNotificationsRead,
       unreadCount,
+      projects,
+      setProjects,
+      addProject,
+      removeProject,
+      updateProject,
+      activeImage,
+      setActiveImage,
+      activeProjectName,
+      setActiveProjectName,
+      activeFieldName,
+      setActiveFieldName,
+      setAnalysisContext,
+      analysisResult,
+      storeAnalysisResult,
       sidebarOpen,
       setSidebarOpen,
     }}>

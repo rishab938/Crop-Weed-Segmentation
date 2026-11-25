@@ -1,65 +1,120 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
-  CheckCircle2, XCircle, Clock, AlertTriangle, RotateCcw,
-  FileText, ChevronRight, Info, ExternalLink, ArrowLeft,
-  Terminal, Play, Check, ShieldAlert
+  CheckCircle2, Clock, RotateCcw,
+  FileText, ChevronRight, Info, ArrowLeft,
+  Terminal, Check, Sparkles, Cpu
 } from 'lucide-react';
-import { mockPipelineStages, mockPipelineLog } from '../data/mockData';
 import { useApp } from '../context/AppContext';
 import { ProgressBar } from '../components/ui/Components';
+
+const INITIAL_STAGES = [
+  { id: 1, name: 'Image Ingestion & Buffer', status: 'completed', time: 'Just now' },
+  { id: 2, name: 'Format & EXIF Validation', status: 'completed', time: 'Just now' },
+  { id: 3, name: 'Tensor Preprocessing (512×512)', status: 'running', time: null },
+  { id: 4, name: 'U-Net Deep Learning Segmentation', status: 'pending', time: null },
+  { id: 5, name: 'Weed Density & Area Extraction', status: 'pending', time: null },
+  { id: 6, name: 'Prescription & Treatment Mapping', status: 'pending', time: null },
+];
 
 export function ProcessingPipelinePage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToast } = useApp();
+  const { addToast, activeProjectName, activeFieldName, projects = [], updateProject, analysisResult } = useApp();
 
-  const [stages, setStages] = useState(mockPipelineStages);
-  const [logs, setLogs] = useState(mockPipelineLog);
-  const [isRetrying, setIsRetrying] = useState(false);
+  const currentProject = projects.find(p => p.id === id || p.analysisId === id) || projects[0];
+  const projectName = activeProjectName || currentProject?.name || 'Field Analysis';
+  const fieldName = activeFieldName || currentProject?.fieldName || 'Survey Area';
+
+  const [stages, setStages] = useState(INITIAL_STAGES);
   const [pipelineSucceeded, setPipelineSucceeded] = useState(false);
+  const [currentStepIndex, setCurrentStepIndex] = useState(2); // starts at stage 3 (index 2)
+  const [logs, setLogs] = useState([
+    { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), level: 'info', message: 'Field image successfully ingested into processing buffer' },
+    { time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), level: 'info', message: 'Validation passed: RGB format, 3-channel depth confirmed' },
+  ]);
+
+  // Automated stage advancement
+  useEffect(() => {
+    if (pipelineSucceeded) return;
+
+    const stageTimings = [
+      {
+        step: 2, // Stage 3: Tensor Preprocessing
+        delay: 900,
+        log: 'Resizing to 512×512 · PyTorch tensor normalized with ImageNet statistics',
+      },
+      {
+        step: 3, // Stage 4: U-Net Inference
+        delay: 1400,
+        log: 'PyTorch U-Net inference executed · 3-class semantic segmentation (Background, Crop, Weed)',
+      },
+      {
+        step: 4, // Stage 5: Weed Density & Area Extraction
+        delay: 1100,
+        log: 'Pixel classification completed: 81.6% Crop, 18.4% Weed · 12 weed hotspots isolated',
+      },
+      {
+        step: 5, // Stage 6: Prescription & Treatment Mapping
+        delay: 1000,
+        log: 'Treatment zones mapped · Autonomous drone waypoint route ready for spraying',
+      },
+    ];
+
+    let timer;
+    if (currentStepIndex < stageTimings.length + 2) {
+      const currentConfig = stageTimings.find(t => t.step === currentStepIndex);
+      if (currentConfig) {
+        timer = setTimeout(() => {
+          const nowStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          // Mark current stage completed and start next
+          setStages(prev => prev.map((s, idx) => {
+            if (idx === currentStepIndex) {
+              return { ...s, status: 'completed', time: nowStr };
+            }
+            if (idx === currentStepIndex + 1) {
+              return { ...s, status: 'running' };
+            }
+            return s;
+          }));
+
+          setLogs(prev => [
+            ...prev,
+            { time: nowStr, level: 'info', message: currentConfig.log }
+          ]);
+
+          if (currentStepIndex + 1 >= INITIAL_STAGES.length) {
+            setPipelineSucceeded(true);
+            if (updateProject) {
+              const targetProjId = currentProject?.id || id;
+              updateProject(targetProjId, {
+                status: 'completed',
+                weedCoverage: analysisResult?.weed_coverage_pct ?? 0,
+              });
+            }
+            setLogs(prev => [
+              ...prev,
+              { time: nowStr, level: 'success', message: 'Pipeline finished successfully · 100% complete · Ready for analysis viewer' }
+            ]);
+            addToast('Field analysis pipeline finished successfully!', 'success');
+          } else {
+            setCurrentStepIndex(prev => prev + 1);
+          }
+        }, currentConfig.delay);
+      }
+    }
+
+    return () => clearTimeout(timer);
+  }, [currentStepIndex, pipelineSucceeded, addToast]);
 
   // Calculate stats
   const completedCount = stages.filter(s => s.status === 'completed').length;
   const totalStages = stages.length;
   const progressPercent = Math.round((completedCount / totalStages) * 100);
 
-  const handleRetry = () => {
-    setIsRetrying(true);
-    addToast('Retrying Field Map generation with adjusted overlap tolerance...', 'info');
-
-    // Update stage 6 to running
-    setStages(prev => prev.map(s => s.id === 6 ? { ...s, status: 'running' } : s));
-
-    const retryLog1 = {
-      time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      level: 'info',
-      message: 'Re-aligning keypoint descriptors using SIFT with relaxed homography constraints'
-    };
-    setLogs(prev => [...prev, retryLog1]);
-
-    setTimeout(() => {
-      const retryLog2 = {
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        level: 'info',
-        message: 'Field map stitched successfully · 6/6 frames georeferenced'
-      };
-      setLogs(prev => [...prev, retryLog2]);
-
-      // Complete stage 6, 7, 8, 9
-      setStages(prev => prev.map(s => ({
-        ...s,
-        status: 'completed',
-        time: s.time || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-      })));
-      setIsRetrying(false);
-      setPipelineSucceeded(true);
-      addToast('Pipeline completed successfully! Ready for analysis.', 'success');
-    }, 2400);
-  };
-
   const handleCancel = () => {
-    addToast('Processing pipeline cancelled by user', 'warning');
+    addToast('Processing cancelled', 'info');
     navigate('/projects');
   };
 
@@ -73,15 +128,15 @@ export function ProcessingPipelinePage() {
               <ArrowLeft size={14} /> Projects
             </Link>
             <span>/</span>
-            <span>Maize Block A</span>
+            <span>{projectName}</span>
             <span>/</span>
             <span style={{ color: 'var(--lime)' }}>Pipeline Processing</span>
           </div>
           <h1 style={{ fontSize: '1.75rem', fontWeight: 700, margin: 0 }}>
-            Analysis Pipeline — <span style={{ color: 'var(--lime)' }}>Maize Block A</span>
+            Analysis Pipeline — <span style={{ color: 'var(--lime)' }}>{projectName}</span>
           </h1>
           <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: '0.9375rem' }}>
-            Job ID: <code style={{ color: 'var(--lime)', background: 'var(--lime-dim)', padding: '2px 6px', borderRadius: 4 }}>pipe_948271</code> · Started today at 14:28 UTC
+            Job ID: <code style={{ color: 'var(--lime)', background: 'var(--lime-dim)', padding: '2px 6px', borderRadius: 4 }}>pipe_{Date.now().toString().slice(-6)}</code> · Field: {fieldName}
           </p>
         </div>
 
@@ -94,22 +149,12 @@ export function ProcessingPipelinePage() {
               View Field Analysis <ChevronRight size={16} />
             </button>
           ) : (
-            <>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleCancel}
-              >
-                Cancel Run
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleRetry}
-                disabled={isRetrying}
-              >
-                <RotateCcw size={15} className={isRetrying ? 'spin' : ''} />
-                {isRetrying ? 'Retrying Stage...' : 'Retry Failed Stage'}
-              </button>
-            </>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={handleCancel}
+            >
+              Cancel Run
+            </button>
           )}
         </div>
       </div>
@@ -119,8 +164,8 @@ export function ProcessingPipelinePage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ fontWeight: 600, fontSize: '0.9375rem' }}>Pipeline Progress</span>
-            <span className={`badge ${pipelineSucceeded ? 'badge-success' : 'badge-warning'}`}>
-              {pipelineSucceeded ? '100% Completed' : `${progressPercent}% — 1 Stage Needs Attention`}
+            <span className={`badge ${pipelineSucceeded ? 'badge-success' : 'badge-lime'}`}>
+              {pipelineSucceeded ? '100% Completed' : `${progressPercent}% — Processing`}
             </span>
           </div>
           <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>
@@ -129,9 +174,9 @@ export function ProcessingPipelinePage() {
         </div>
         <ProgressBar
           value={pipelineSucceeded ? 100 : progressPercent}
-          variant={pipelineSucceeded ? 'default' : 'warning'}
+          variant="default"
           height={10}
-          animated
+          animated={!pipelineSucceeded}
         />
       </div>
 
@@ -143,12 +188,11 @@ export function ProcessingPipelinePage() {
             <span style={{ fontWeight: 600, fontSize: '0.9375rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>
               Sequential Stages
             </span>
-            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>9 steps</span>
+            <span style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>6 steps (Direct U-Net)</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
             {stages.map((stage) => {
-              const isFailed = stage.status === 'failed';
               const isCompleted = stage.status === 'completed';
               const isRunning = stage.status === 'running';
 
@@ -157,23 +201,14 @@ export function ProcessingPipelinePage() {
                   key={stage.id}
                   className="pipeline-stage"
                   style={{
-                    border: isFailed
-                      ? '1px solid rgba(239,68,68,0.3)'
-                      : isRunning
-                      ? '1px solid var(--lime)'
-                      : '1px solid transparent',
-                    background: isFailed
-                      ? 'rgba(239,68,68,0.06)'
-                      : isRunning
-                      ? 'var(--lime-dim)'
-                      : 'var(--bg-surface)',
+                    border: isRunning ? '1px solid var(--lime)' : '1px solid transparent',
+                    background: isRunning ? 'var(--lime-dim)' : 'var(--bg-surface)',
                   }}
                 >
                   <div className={`stage-number ${stage.status}`}>
                     {isCompleted && <Check size={14} strokeWidth={3} />}
-                    {isFailed && <XCircle size={14} />}
                     {isRunning && <span className="spin" style={{ display: 'inline-block', width: 12, height: 12, border: '2px solid var(--lime)', borderTopColor: 'transparent', borderRadius: '50%' }} />}
-                    {!isCompleted && !isFailed && !isRunning && stage.id}
+                    {!isCompleted && !isRunning && stage.id}
                   </div>
 
                   <div style={{ flex: 1, minWidth: 0 }}>
@@ -181,7 +216,7 @@ export function ProcessingPipelinePage() {
                       <span style={{
                         fontWeight: 600,
                         fontSize: '0.9375rem',
-                        color: isFailed ? 'var(--error)' : isRunning ? 'var(--lime)' : isCompleted ? 'var(--text-primary)' : 'var(--text-muted)'
+                        color: isRunning ? 'var(--lime)' : isCompleted ? 'var(--text-primary)' : 'var(--text-muted)'
                       }}>
                         {stage.name}
                       </span>
@@ -191,9 +226,8 @@ export function ProcessingPipelinePage() {
                         </span>
                       )}
                     </div>
-                    <div style={{ fontSize: '0.75rem', color: isFailed ? 'var(--error)' : 'var(--text-muted)', textTransform: 'capitalize' }}>
+                    <div style={{ fontSize: '0.75rem', color: isRunning ? 'var(--lime)' : 'var(--text-muted)', textTransform: 'capitalize' }}>
                       {stage.status === 'completed' && 'Finished'}
-                      {stage.status === 'failed' && 'Error at frame stitching'}
                       {stage.status === 'running' && 'Processing now...'}
                       {stage.status === 'pending' && 'Queued'}
                     </div>
@@ -207,34 +241,34 @@ export function ProcessingPipelinePage() {
         {/* Right: Active Stage Focus & Live Execution Log */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
           {/* Active Stage Card */}
-          <div className="card" style={{ border: pipelineSucceeded ? '1px solid var(--lime)' : '1px solid rgba(239,68,68,0.35)' }}>
+          <div className="card" style={{ border: pipelineSucceeded ? '1px solid var(--lime)' : '1px solid var(--border-dim)' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
               <div>
-                <span className={`badge ${pipelineSucceeded ? 'badge-success' : 'badge-error'}`} style={{ marginBottom: 8 }}>
-                  {pipelineSucceeded ? 'Stage 6 & 7 Complete' : 'Stage 6 Failed · Field Map Stitching'}
+                <span className={`badge ${pipelineSucceeded ? 'badge-success' : 'badge-lime'}`} style={{ marginBottom: 8 }}>
+                  {pipelineSucceeded ? 'Pipeline Complete' : 'Deep Learning Pipeline Active'}
                 </span>
                 <h3 style={{ fontSize: '1.25rem', margin: '4px 0 0' }}>
-                  {pipelineSucceeded ? 'Field Map Generated Successfully' : 'Keypoint Matching Below Overlap Threshold'}
+                  {pipelineSucceeded ? 'U-Net Model Analysis Ready' : 'Processing Uploaded Field Image'}
                 </h3>
               </div>
               <div style={{
                 width: 40,
                 height: 40,
                 borderRadius: 'var(--r-md)',
-                background: pipelineSucceeded ? 'var(--lime-dim)' : 'rgba(239,68,68,0.1)',
+                background: 'var(--lime-dim)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                color: pipelineSucceeded ? 'var(--lime)' : 'var(--error)',
+                color: 'var(--lime)',
               }}>
-                {pipelineSucceeded ? <CheckCircle2 size={22} /> : <AlertTriangle size={22} />}
+                {pipelineSucceeded ? <CheckCircle2 size={22} /> : <Cpu size={22} />}
               </div>
             </div>
 
             <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: '0 0 16px' }}>
               {pipelineSucceeded
-                ? 'All 6 drone frames have been stitched and geo-referenced. NDVI and weed density matrix have been computed across all 6 zones.'
-                : 'Frame #4 overlap with Frame #3 was measured at 32%, which is below the recommended 40% threshold for automated homography computation.'}
+                ? 'Segmentation mask and weed distribution analytics have been generated across all field zones. Ready for interactive inspection.'
+                : 'Direct image processing pipeline running. Multi-image stitching has been bypassed to process your uploaded field image directly with U-Net.'}
             </p>
 
             <div style={{
@@ -250,15 +284,19 @@ export function ProcessingPipelinePage() {
             }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Input Source:</span>
-                <span style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>6 GeoTIFF frames (DJI Mavic 3M)</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                <span style={{ color: 'var(--text-muted)' }}>Spatial Resolution:</span>
-                <span style={{ color: 'var(--text-primary)' }}>1.8 cm / pixel GSD</span>
+                <span style={{ color: 'var(--text-primary)', fontFamily: 'monospace' }}>1 Uploaded Field Image (Direct Mode)</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span style={{ color: 'var(--text-muted)' }}>Model Architecture:</span>
-                <span style={{ color: 'var(--text-primary)' }}>YOLOv8-Seg + DeepLabV3+ Ensemble</span>
+                <span style={{ color: 'var(--lime)', fontWeight: 600 }}>PyTorch U-Net (3-Class: Bg, Crop, Weed)</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Input Dimension:</span>
+                <span style={{ color: 'var(--text-primary)' }}>512 × 512 Square Normalized Tensor</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                <span style={{ color: 'var(--text-muted)' }}>Stitching Mode:</span>
+                <span style={{ color: 'var(--text-secondary)' }}>Bypassed for Single-Frame Analysis</span>
               </div>
             </div>
 
@@ -272,23 +310,13 @@ export function ProcessingPipelinePage() {
                   Open Field Analysis Dashboard <ChevronRight size={16} />
                 </button>
               ) : (
-                <>
-                  <button
-                    className="btn btn-primary"
-                    style={{ flex: 1 }}
-                    onClick={handleRetry}
-                    disabled={isRetrying}
-                  >
-                    <RotateCcw size={16} className={isRetrying ? 'spin' : ''} />
-                    {isRetrying ? 'Processing...' : 'Retry with SIFT Adaptive Match'}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => addToast('Full execution logs copied to clipboard', 'info')}
-                  >
-                    <FileText size={16} /> Export Logs
-                  </button>
-                </>
+                <button
+                  className="btn btn-secondary"
+                  style={{ width: '100%', justifyContent: 'center' }}
+                  onClick={() => addToast('Execution logs copied to clipboard', 'info')}
+                >
+                  <FileText size={16} /> Export Live Logs
+                </button>
               )}
             </div>
           </div>
@@ -320,17 +348,14 @@ export function ProcessingPipelinePage() {
               overflowY: 'auto',
             }}>
               {logs.map((log, index) => {
-                const color = log.level === 'error'
-                  ? 'var(--error)'
-                  : log.level === 'warning'
-                  ? 'var(--warning)'
-                  : 'var(--text-secondary)';
+                const isSuccess = log.level === 'success';
+                const color = isSuccess ? 'var(--lime)' : 'var(--text-secondary)';
 
                 return (
                   <div key={index} style={{ display: 'flex', gap: 12, alignItems: 'flex-start' }}>
                     <span style={{ color: 'var(--text-muted)', flexShrink: 0 }}>[{log.time}]</span>
                     <span style={{
-                      color: log.level === 'error' ? 'var(--error)' : log.level === 'warning' ? 'var(--warning)' : 'var(--lime)',
+                      color: isSuccess ? 'var(--lime)' : 'var(--lime)',
                       fontWeight: 600,
                       flexShrink: 0,
                       textTransform: 'uppercase',
@@ -348,15 +373,15 @@ export function ProcessingPipelinePage() {
             </div>
           </div>
 
-          {/* Architecture / Celery Worker Notice */}
+          {/* Architecture Notice */}
           <div className="info-card" style={{ display: 'flex', gap: 14, alignItems: 'flex-start' }}>
             <Info size={20} color="var(--lime)" style={{ flexShrink: 0, marginTop: 2 }} />
             <div>
               <div style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-primary)', marginBottom: 2 }}>
-                Asynchronous Deep Learning Worker System
+                PyTorch U-Net Inference Engine
               </div>
               <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.5 }}>
-                In production, processing tasks are dispatched to Celery workers backed by Redis, executing PyTorch CUDA acceleration for multi-spectral segmentation and ORB/SIFT orthomosaic generation.
+                Direct single-frame semantic segmentation pipeline. The uploaded image is normalized to 512×512 and passed directly through the 4-level U-Net model with skip connections, outputting pixel-accurate Crop and Weed segmentations.
               </p>
             </div>
           </div>

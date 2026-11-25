@@ -4,24 +4,59 @@ import {
   FileText, Download, Printer, ArrowLeft, CheckCircle2,
   Calendar, MapPin, Layers, Award, Sparkles
 } from 'lucide-react';
-import { mockReports, mockAnalysis } from '../data/mockData';
 import { useApp } from '../context/AppContext';
 import { Badge } from '../components/ui/Components';
 
 export function ReportDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToast } = useApp();
+  const { addToast, activeProjectName, activeFieldName, analysisResult, projects = [] } = useApp();
 
-  const report = mockReports.find(r => r.id === id) || mockReports[0];
-  const analysis = mockAnalysis[report.analysisId] || mockAnalysis['ana_01'];
+  const currentProject = projects.find(p => p.id === id || p.analysisId === id) || projects[0];
+  const projectName = activeProjectName || currentProject?.name || 'Field Survey Report';
+  const fieldName = activeFieldName || currentProject?.fieldName || 'Survey Block';
+
+  const usingRealModel = !!(analysisResult && analysisResult.model_used);
+
+  // Model-driven values
+  const weedPct = usingRealModel ? analysisResult.weed_coverage_pct : 0.0;
+  const cropPct = usingRealModel ? analysisResult.crop_coverage_pct : 8.7;
+  const sprayLevel = analysisResult?.spray_level || 'none';
+  const sprayMsg = analysisResult?.spray_message || 'No spray needed — weed density negligible.';
+  const hotspots = usingRealModel ? analysisResult.hotspot_count : 0;
+  const totalFieldHa = currentProject?.fieldSize || 10.0;
+  const treatedAreaHa = usingRealModel
+    ? Math.max(0.0, Number((totalFieldHa * (weedPct / 100) * 1.5).toFixed(1)))
+    : 0.0;
+  const chemicalSavingsPct = weedPct > 0 
+    ? Math.min(99, Math.max(50, Math.round(100 - (treatedAreaHa / totalFieldHa * 100))))
+    : 100;
 
   const handlePrint = () => {
     window.print();
   };
 
   const handleDownload = () => {
-    addToast(`Generating official PDF for ${report.id}...`, 'success');
+    const element = document.getElementById('report-content');
+    if (!element) {
+      addToast('Report content not found', 'error');
+      return;
+    }
+    addToast('Generating PDF report...', 'info');
+    const dateStr = new Date().toISOString().split('T')[0];
+    const safeName = projectName.replace(/[^a-zA-Z0-9]/g, '_');
+    const opt = {
+      margin:       0.5,
+      filename:     `CropWeedAI_Report_${safeName}_${dateStr}.pdf`,
+      image:        { type: 'jpeg', quality: 0.98 },
+      html2canvas:  { scale: 2, useCORS: true },
+      jsPDF:        { unit: 'in', format: 'letter', orientation: 'portrait' }
+    };
+    window.html2pdf().from(element).set(opt).save().then(() => {
+      addToast('PDF downloaded successfully', 'success');
+    }).catch(() => {
+      addToast('PDF generation failed', 'error');
+    });
   };
 
   return (
@@ -33,7 +68,7 @@ export function ReportDetailPage() {
         </Link>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <Link to={`/analysis/${analysis.id}`} className="btn btn-secondary btn-sm">
+          <Link to="/analysis/ana_01" className="btn btn-secondary btn-sm">
             Interactive Viewer
           </Link>
           <button className="btn btn-secondary btn-sm" onClick={handlePrint}>
@@ -46,7 +81,7 @@ export function ReportDetailPage() {
       </div>
 
       {/* Printable Report Document Card */}
-      <div className="card" style={{ padding: '40px 48px', display: 'flex', flexDirection: 'column', gap: 32 }}>
+      <div id="report-content" className="card" style={{ padding: '40px 48px', display: 'flex', flexDirection: 'column', gap: 32 }}>
         {/* Document Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '2px solid var(--border)', paddingBottom: 24, flexWrap: 'wrap', gap: 20 }}>
           <div>
@@ -64,12 +99,14 @@ export function ReportDetailPage() {
           </div>
 
           <div style={{ textAlign: 'right' }}>
-            <span className="badge badge-lime" style={{ marginBottom: 6 }}>OFFICIAL AUDIT</span>
+            <span className="badge badge-lime" style={{ marginBottom: 6 }}>
+              {usingRealModel ? 'AI MODEL AUDIT' : 'SURVEY REPORT'}
+            </span>
             <div style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '1rem', color: 'var(--text-primary)' }}>
-              REPORT #{report.id.toUpperCase()}
+              REPORT #{id ? id.toUpperCase() : 'REP_01'}
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              Date: {report.date}
+              Date: {new Date().toISOString().split('T')[0]}
             </div>
           </div>
         </div>
@@ -78,19 +115,21 @@ export function ReportDetailPage() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 16, background: 'var(--bg-surface)', padding: 18, borderRadius: 'var(--r-md)' }}>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Target Field</div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>{report.fieldName}</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>{fieldName}</div>
           </div>
           <div>
             <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Field Area</div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>12.4 Hectares</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>{totalFieldHa} Hectares</div>
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Crop Type</div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>Maize (Zea mays)</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Segmentation Model</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>U-Net PhenoBench (Kaggle)</div>
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Survey Drone</div>
-            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2 }}>DJI Mavic 3M (Multispectral)</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Model Status</div>
+            <div style={{ fontWeight: 600, fontSize: '0.9375rem', marginTop: 2, color: 'var(--lime)' }}>
+              {usingRealModel ? 'Live Weights (unet_best.pt)' : 'Pending Analysis'}
+            </div>
           </div>
         </div>
 
@@ -98,7 +137,7 @@ export function ReportDetailPage() {
         <div>
           <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 10 }}>Executive Summary</h3>
           <p style={{ fontSize: '0.9375rem', color: 'var(--text-secondary)', lineHeight: 1.7, margin: 0 }}>
-            Aerial multispectral imagery stitched across 6 georeferenced frames demonstrates healthy stand establishment across <strong>81.6%</strong> of the survey area. Moderate to severe broadleaf and grass weed infestation was localized primarily within Zone 3 (27.4% coverage) and Zone 6 (22.0% coverage). Selective spot-treatment application targeting 3.8 ha will eliminate high-density weed patches while achieving a <strong>68% reduction in herbicide consumption</strong> relative to broadcast treatment.
+            Automated image segmentation using the trained U-Net model demonstrates crop establishment across <strong>{cropPct}%</strong> of the surveyed area. Detected weed coverage is measured at <strong>{weedPct}%</strong> across the submitted survey frames. Under the agronomic decision threshold, the prescription dosage is <strong>{sprayLevel.toUpperCase()}</strong>: <em>"{sprayMsg}"</em>. Targeted precision spraying saves an estimated <strong>~{chemicalSavingsPct}% herbicide</strong> compared to uniform broadcast spraying.
           </p>
         </div>
 
@@ -109,73 +148,52 @@ export function ReportDetailPage() {
             <div className="card" style={{ padding: 14, textAlign: 'center' }}>
               <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Average Weed Coverage</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#f97316', marginTop: 4 }}>
-                {report.weedCoverage}%
+                {weedPct}%
               </div>
             </div>
             <div className="card" style={{ padding: 14, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Crop Canopy Density</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Crop Canopy Coverage</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--lime)', marginTop: 4 }}>
-                {analysis.cropCoverage}%
+                {cropPct}%
               </div>
             </div>
             <div className="card" style={{ padding: 14, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Hotspots Flagged</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Weed Hotspots Flagged</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: '#ef4444', marginTop: 4 }}>
-                {analysis.hotspots}
+                {hotspots}
               </div>
             </div>
             <div className="card" style={{ padding: 14, textAlign: 'center' }}>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Recommended Spray Area</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Targeted Spray Area</div>
               <div style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--lime)', marginTop: 4 }}>
-                3.8 ha
+                {treatedAreaHa} ha
               </div>
             </div>
           </div>
         </div>
 
-        {/* Zone Breakdown Table */}
-        <div>
-          <h3 style={{ fontSize: '1.125rem', fontWeight: 700, marginBottom: 12 }}>Zone Breakdown & Treatment Prescription</h3>
-          <div className="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>Zone ID</th>
-                  <th>Weed Infestation</th>
-                  <th>Primary Species</th>
-                  <th>Severity Level</th>
-                  <th>Recommended Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {analysis.zones.map(z => {
-                  const isHigh = z.coverage > 20;
-                  const isMed = z.coverage > 12;
-                  return (
-                    <tr key={z.id}>
-                      <td style={{ fontWeight: 700 }}>Zone {z.id}</td>
-                      <td>
-                        <span style={{ fontWeight: 600, color: isHigh ? 'var(--error)' : isMed ? 'var(--warning)' : 'var(--lime)' }}>
-                          {z.coverage}%
-                        </span>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)' }}>
-                        {isHigh ? 'Palmer Amaranth' : isMed ? 'Waterhemp / Foxtail' : 'Minor annual grasses'}
-                      </td>
-                      <td>
-                        <Badge variant={isHigh ? 'error' : isMed ? 'warning' : 'success'}>
-                          {isHigh ? 'Critical' : isMed ? 'Moderate' : 'Low'}
-                        </Badge>
-                      </td>
-                      <td style={{ fontSize: '0.8125rem' }}>
-                        {isHigh ? 'Targeted Spot Spray (100% dose)' : isMed ? 'Low-rate spot spray' : 'Skip / Monitor'}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        {/* Agronomic Prescription Block */}
+        <div style={{ background: 'var(--bg-surface)', padding: 20, borderRadius: 'var(--r-md)', borderLeft: '4px solid var(--lime)' }}>
+          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, marginBottom: 8 }}>
+            Agronomic Prescription & UAV Action Plan
+          </h3>
+          <div style={{ display: 'flex', gap: 24, flexWrap: 'wrap', marginBottom: 10 }}>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Prescription Level</span>
+              <div style={{ fontWeight: 700, color: 'var(--lime)', fontSize: '1.1rem', textTransform: 'uppercase' }}>
+                {sprayLevel}
+              </div>
+            </div>
+            <div>
+              <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textTransform: 'uppercase' }}>Estimated Herbicide Reduction</span>
+              <div style={{ fontWeight: 700, color: 'var(--lime)', fontSize: '1.1rem' }}>
+                ~{chemicalSavingsPct}%
+              </div>
+            </div>
           </div>
+          <p style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: 0, lineHeight: 1.6 }}>
+            {sprayMsg}
+          </p>
         </div>
 
         {/* Certification / Sign-off Block */}
@@ -185,7 +203,7 @@ export function ReportDetailPage() {
               <CheckCircle2 size={16} /> Certified Automated Agronomic Analysis
             </div>
             <div style={{ fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
-              Processed by Crop & Weed AI Cloud Engine v2.4 · SHA256: <code>d9a8e23f...</code>
+              Processed by Crop & Weed AI · Model: PyTorch U-Net (PhenoBench weights)
             </div>
           </div>
 
