@@ -49,35 +49,45 @@ def get_spray_dosage(weed_pct: float) -> tuple[str, str]:
 def run_inference(image_data: bytes) -> InferenceResult:
     """
     Run U-Net segmentation on raw image bytes.
-    Matches Kaggle Cell 11 pipeline.
+    Uses onnxruntime.InferenceSession when available (~80MB RAM),
+    falling back to PyTorch if needed.
     """
     if not model_loader.is_available:
         raise RuntimeError("model_unavailable")
 
-    try:
-        import torch
-    except ImportError:
-        raise RuntimeError("model_unavailable")
-
-    model, device = model_loader.get_model()
     img = load_image(image_data)
     original_size = img.size  # (W, H)
 
     # Resize input image to max 512x512 before inference to reduce memory
     img = img.resize((512, 512), Image.LANCZOS)
 
-    tensor = preprocess(img).to(device)
+    input_arr = preprocess(img)  # float32 numpy array of shape (1, 3, 512, 512)
 
     t0 = time.perf_counter()
-    with torch.no_grad():
-        output = model(tensor)  # (1, 3, 512, 512)
-        # argmax across class dimension
-        pred = output[0].argmax(dim=0).cpu().numpy().astype(np.uint8)  # 512x512
-        # Free GPU/CPU tensors immediately after extracting prediction
-        del output
-        del tensor
-        torch.cuda.empty_cache()  # no-op on CPU but harmless
+    if model_loader.is_onnx:
+        session, in_name, out_name = model_loader.get_session()
+        outputs = session.run([out_name], {in_name: input_arr})
+        pred = np.argmax(outputs[0][0], axis=0).astype(np.uint8)  # 512x512
+        del outputs
+        del input_arr
         gc.collect()
+    else:
+        try:
+            import torch
+        except ImportError:
+            raise RuntimeError("model_unavailable")
+
+        model, device = model_loader.get_model()
+        tensor = torch.from_numpy(input_arr).to(device)
+        with torch.no_grad():
+            output = model(tensor)  # (1, 3, 512, 512)
+            # argmax across class dimension
+            pred = output[0].argmax(dim=0).cpu().numpy().astype(np.uint8)  # 512x512
+            del output
+            del tensor
+            del input_arr
+            torch.cuda.empty_cache()
+            gc.collect()
     t1 = time.perf_counter()
 
     # ── Keep mask and overlay at model resolution (512×512) to stay well under 512MB RAM ──

@@ -44,22 +44,21 @@ def apply_vegetation_mask(img: Image.Image) -> Image.Image:
     return Image.fromarray(img_rgb)
 
 
-def preprocess(img: Image.Image):
+def preprocess(img: Image.Image) -> np.ndarray:
     """
     Returns a float32 numpy array of shape (1, 3, H, W) normalised to training stats.
-    Requires PyTorch (imported lazily so the service starts without it).
+    Pure NumPy implementation for onnxruntime (no torch dependency needed).
     """
     img = img.convert("RGB")
     img = apply_vegetation_mask(img)  # zero out soil/shadows before model sees the image
-    try:
-        import torch
-    except ImportError:
-        raise RuntimeError("PyTorch is required for inference")
 
     img_resized = img.resize((512, 512), Image.LANCZOS)
     arr = np.array(img_resized, dtype=np.float32) / 255.0
     mean = np.array(MEAN, dtype=np.float32)
     std = np.array(STD, dtype=np.float32)
     arr = (arr - mean) / std
-    tensor = torch.from_numpy(arr.astype(np.float32)).permute(2, 0, 1).unsqueeze(0).float()  # (1, 3, H, W)
-    return tensor
+
+    # Transpose from (H, W, C) to (C, H, W) and add batch dimension -> (1, 3, 512, 512)
+    tensor_arr = np.transpose(arr, (2, 0, 1))
+    tensor_arr = np.expand_dims(tensor_arr, axis=0).astype(np.float32)
+    return tensor_arr
