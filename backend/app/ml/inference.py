@@ -90,10 +90,13 @@ def run_inference(image_data: bytes) -> InferenceResult:
     # to background (class 0).  This fixes bare-soil misclassification.
     try:
         import cv2
-        img_bgr = cv2.cvtColor(np.array(img.convert("RGB")), cv2.COLOR_RGB2HSV)
+        img_rgb_full = np.array(Image.fromarray(np.array(img)).resize(
+            (mask_array.shape[1], mask_array.shape[0]), Image.LANCZOS
+        ).convert("RGB"))
+        img_hsv = cv2.cvtColor(img_rgb_full, cv2.COLOR_RGB2HSV)
         lower_green = np.array([25, 40, 40])
         upper_green = np.array([90, 255, 255])
-        veg_mask = cv2.inRange(img_bgr, lower_green, upper_green)   # 255 = plant
+        veg_mask = cv2.inRange(img_hsv, lower_green, upper_green)   # 255 = plant
         mask_array[veg_mask == 0] = 0  # force non-vegetation → background
     except ImportError:
         pass  # cv2 not installed — skip vegetation masking gracefully
@@ -136,6 +139,8 @@ def _build_overlay(original: Image.Image, mask: np.ndarray) -> bytes:
       Crop (1) -> [0, 200, 0] green
       Weed (2) -> [220, 0, 0] red
     """
+    if original.size != (mask.shape[1], mask.shape[0]):
+        original = original.resize((mask.shape[1], mask.shape[0]), Image.LANCZOS)
     img_np = np.array(original.convert("RGB"), dtype=np.float32)
     overlay_np = img_np.copy()
 
