@@ -80,20 +80,16 @@ def run_inference(image_data: bytes) -> InferenceResult:
         gc.collect()
     t1 = time.perf_counter()
 
-    # Resize mask back to original image size
-    mask_img = Image.fromarray(pred, mode="L")
-    mask_img = mask_img.resize(original_size, Image.NEAREST)
-    mask_array = np.array(mask_img)
+    # ── Keep mask and overlay at model resolution (512×512) to stay well under 512MB RAM ──
+    # Inflating 512×512 predictions back to 4000×3000 takes >350MB of float32 RAM,
+    # causing Render to kill the process. At 512×512, the entire overlay takes <5MB.
+    mask_array = pred  # uint8 shape (512, 512)
 
     # ── Vegetation mask: zero out predictions on non-plant pixels ─────────
-    # HSV thresholding isolates green vegetation; anything outside is forced
-    # to background (class 0).  This fixes bare-soil misclassification.
     try:
         import cv2
-        img_rgb_full = np.array(Image.fromarray(np.array(img)).resize(
-            (mask_array.shape[1], mask_array.shape[0]), Image.LANCZOS
-        ).convert("RGB"))
-        img_hsv = cv2.cvtColor(img_rgb_full, cv2.COLOR_RGB2HSV)
+        img_rgb = np.array(img.convert("RGB"))
+        img_hsv = cv2.cvtColor(img_rgb, cv2.COLOR_RGB2HSV)
         lower_green = np.array([25, 40, 40])
         upper_green = np.array([90, 255, 255])
         veg_mask = cv2.inRange(img_hsv, lower_green, upper_green)   # 255 = plant
