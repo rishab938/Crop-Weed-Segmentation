@@ -11,7 +11,7 @@ const TABS = [
 export function FieldAnalysisPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { addToast, activeImage, activeProjectName, activeFieldName, projects = [], analysisResult } = useApp();
+  const { addToast, activeImage, activeImages = [], activeProjectName, activeFieldName, projects = [], analysisResult } = useApp();
 
   const [activeTab, setActiveTab] = useState("segmentation");
   const [zoomLevel, setZoomLevel] = useState(1);
@@ -26,7 +26,7 @@ export function FieldAnalysisPage() {
 
   // Per-image data from backend (array of overlays)
   const imagesList = (usingRealModel && analysisResult.images) ? analysisResult.images : [];
-  const totalImages = imagesList.length || 1;
+  const totalImages = Math.max(imagesList.length, activeImages.length, 1);
   const safeIdx = Math.min(currentImageIdx, totalImages - 1);
 
   // Current image overlay (from per-image array or fallback to single overlay)
@@ -34,8 +34,12 @@ export function FieldAnalysisPage() {
     ? imagesList[safeIdx]?.overlay_data_uri
     : (analysisResult?.overlay_data_uri || null);
 
-  // Raw uploaded image (from context)
-  const rawImage = activeImage || currentProject?.image || null;
+  // Raw uploaded image corresponding to this index
+  const rawImage = (activeImages.length > safeIdx && activeImages[safeIdx]) 
+    || activeImage 
+    || currentProject?.image 
+    || null;
+
   const displayImage = activeTab === "original" ? rawImage : (currentOverlay || rawImage);
 
   // Per-image stats for the currently selected image

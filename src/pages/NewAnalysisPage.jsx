@@ -78,7 +78,10 @@ export default function NewAnalysisPage() {
   };
 
   const handleStartAnalysis = async () => {
-    const BACKEND = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    // In production on Render, frontend and backend share the same origin, so API is at /api/v1
+    const BACKEND = import.meta.env.VITE_API_BASE_URL !== undefined 
+      ? import.meta.env.VITE_API_BASE_URL 
+      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
     if (!projectName.trim()) {
       addToast('Please enter a project name', 'error');
       return;
@@ -89,31 +92,16 @@ export default function NewAnalysisPage() {
     }
 
     const firstImagePreview = files[0]?.preview;
-    const firstFile = files[0]?.file;
+    const allPreviews = files.map(f => f.preview).filter(Boolean);
 
-    // Set synchronous preview immediately so navigating doesn't wait
+    // Set synchronous previews immediately
     if (setAnalysisContext) {
       setAnalysisContext({
         image: firstImagePreview,
+        images: allPreviews,
         projectName: projectName.trim(),
         fieldName: fieldName.trim() || 'Custom Field',
       });
-    }
-
-    // Also convert file to dataUrl for sessionStorage persistence
-    if (firstFile) {
-      const reader = new FileReader();
-      reader.onload = (e) => {
-        const dataUrl = e.target.result;
-        if (setAnalysisContext) {
-          setAnalysisContext({
-            image: dataUrl,
-            projectName: projectName.trim(),
-            fieldName: fieldName.trim() || 'Custom Field',
-          });
-        }
-      };
-      reader.readAsDataURL(firstFile);
     }
 
     let createdProject = null;
@@ -175,6 +163,7 @@ export default function NewAnalysisPage() {
 
     // Try to call the real backend inference API
     try {
+      addToast('Running model segmentation on images...', 'info');
       const resp = await fetch(`${BACKEND}/api/v1/infer`, {
         method: 'POST',
         body: formData,
@@ -195,13 +184,15 @@ export default function NewAnalysisPage() {
         }
         addToast('Model inference complete — real results loaded', 'success');
       } else {
-        console.warn('Backend inference returned non-OK status, using mock data');
+        const errBody = await resp.text();
+        console.warn('Backend inference returned error:', resp.status, errBody);
+        addToast(`Inference server response ${resp.status}: using mock preview`, 'warning');
       }
     } catch (err) {
       console.warn('Backend inference unavailable, falling back to demo data:', err);
+      addToast('Backend inference timed out or unreachable — using demo preview', 'warning');
     }
 
-    addToast('Field analysis pipeline started', 'success');
     navigate('/analysis/ana_01/processing');
   };
 

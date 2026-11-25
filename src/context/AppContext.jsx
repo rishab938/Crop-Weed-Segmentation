@@ -81,6 +81,12 @@ export function AppProvider({ children }) {
   const [activeImage, setActiveImage] = useState(() => {
     return sessionStorage.getItem('cw-active-image') || null;
   });
+  const [activeImages, setActiveImages] = useState(() => {
+    try {
+      const saved = sessionStorage.getItem('cw-active-images');
+      return saved ? JSON.parse(saved) : [];
+    } catch { return []; }
+  });
   const [activeProjectName, setActiveProjectName] = useState(() => {
     return sessionStorage.getItem('cw-active-project-name') || '';
   });
@@ -104,12 +110,21 @@ export function AppProvider({ children }) {
     } catch (e) { console.warn('Could not persist analysis result', e); }
   };
 
-  const setAnalysisContext = ({ image, projectName, fieldName }) => {
+  const setAnalysisContext = ({ image, images, projectName, fieldName }) => {
     if (image !== undefined) {
       setActiveImage(image);
       try {
         if (image) sessionStorage.setItem('cw-active-image', image);
         else sessionStorage.removeItem('cw-active-image');
+      } catch (e) {
+        console.warn('Storage quota warning', e);
+      }
+    }
+    if (images !== undefined) {
+      setActiveImages(images);
+      try {
+        if (images && images.length) sessionStorage.setItem('cw-active-images', JSON.stringify(images));
+        else sessionStorage.removeItem('cw-active-images');
       } catch (e) {
         console.warn('Storage quota warning', e);
       }
@@ -201,6 +216,8 @@ export function AppProvider({ children }) {
       updateProject,
       activeImage,
       setActiveImage,
+      activeImages,
+      setActiveImages,
       activeProjectName,
       setActiveProjectName,
       activeFieldName,
