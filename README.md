@@ -1,4 +1,14 @@
-Crop & Weed AI
+---
+title: Crop & Weed AI
+emoji: 🌾
+colorFrom: green
+colorTo: lime
+sdk: docker
+app_port: 7860
+pinned: false
+---
+
+# Crop & Weed AI
 AI-Based Crop & Weed Segmentation, Field Mapping & Precision Treatment System
 
 Crop & Weed AI is a computer-vision-based precision agriculture platform that analyzes field or drone imagery to identify crops, weeds, and background pixels, generate field-level weed maps, detect weed hotspots, and create digital treatment maps.
