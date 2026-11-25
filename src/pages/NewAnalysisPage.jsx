@@ -78,10 +78,8 @@ export default function NewAnalysisPage() {
   };
 
   const handleStartAnalysis = async () => {
-    // In production on Render, frontend and backend share the same origin, so API is at /api/v1
-    const BACKEND = import.meta.env.VITE_API_BASE_URL !== undefined 
-      ? import.meta.env.VITE_API_BASE_URL 
-      : (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1' ? 'http://localhost:8000' : '');
+    // Use same-origin relative URLs (proxied to :8000 in Vite dev, served by FastAPI on Render)
+    const BACKEND = "";
     if (!projectName.trim()) {
       addToast('Please enter a project name', 'error');
       return;
@@ -167,15 +165,15 @@ export default function NewAnalysisPage() {
       const resp = await fetch(`${BACKEND}/api/v1/infer`, {
         method: 'POST',
         body: formData,
-        signal: AbortSignal.timeout(60000),
+        signal: AbortSignal.timeout(90000),
       });
 
       if (resp.ok) {
         const data = await resp.json();
         if (storeAnalysisResult) storeAnalysisResult(data);
-        if (setAnalysisContext && data.overlay_data_uri) {
-          setAnalysisContext({ image: data.overlay_data_uri });
-        }
+        // Do NOT call setAnalysisContext with overlay_data_uri — it is too large
+        // for sessionStorage and would erase the original blob: previews.
+        // FieldAnalysisPage reads overlays directly from analysisResult.images[].
         if (updateProject && createdProject) {
           updateProject(createdProject.id, {
             status: 'completed',

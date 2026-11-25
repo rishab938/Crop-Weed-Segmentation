@@ -5,6 +5,7 @@ Never returns fabricated predictions.
 """
 from __future__ import annotations
 
+import gc
 import io
 import time
 from dataclasses import dataclass
@@ -62,13 +63,21 @@ def run_inference(image_data: bytes) -> InferenceResult:
     img = load_image(image_data)
     original_size = img.size  # (W, H)
 
+    # Resize input image to max 512x512 before inference to reduce memory
+    img = img.resize((512, 512), Image.LANCZOS)
+
     tensor = preprocess(img).to(device)
 
     t0 = time.perf_counter()
     with torch.no_grad():
-        logits = model(tensor)  # (1, 3, 512, 512)
+        output = model(tensor)  # (1, 3, 512, 512)
         # argmax across class dimension
-        pred = logits[0].argmax(dim=0).cpu().numpy().astype(np.uint8)  # 512x512
+        pred = output[0].argmax(dim=0).cpu().numpy().astype(np.uint8)  # 512x512
+        # Free GPU/CPU tensors immediately after extracting prediction
+        del output
+        del tensor
+        torch.cuda.empty_cache()  # no-op on CPU but harmless
+        gc.collect()
     t1 = time.perf_counter()
 
     # Resize mask back to original image size

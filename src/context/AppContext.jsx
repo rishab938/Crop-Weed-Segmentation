@@ -105,8 +105,18 @@ export function AppProvider({ children }) {
   const storeAnalysisResult = (result) => {
     setAnalysisResult(result);
     try {
-      if (result) sessionStorage.setItem('cw-analysis-result', JSON.stringify(result));
-      else sessionStorage.removeItem('cw-analysis-result');
+      if (result) {
+        // Strip large base64 image data before persisting to sessionStorage
+        // to avoid QuotaExceededError. Overlay images stay in memory only.
+        const slim = { ...result };
+        delete slim.overlay_data_uri;
+        if (slim.images) {
+          slim.images = slim.images.map(({ overlay_data_uri, ...rest }) => rest);
+        }
+        sessionStorage.setItem('cw-analysis-result', JSON.stringify(slim));
+      } else {
+        sessionStorage.removeItem('cw-analysis-result');
+      }
     } catch (e) { console.warn('Could not persist analysis result', e); }
   };
 

@@ -49,13 +49,14 @@ def preprocess(img: Image.Image):
     Returns a float32 numpy array of shape (1, 3, H, W) normalised to training stats.
     Requires PyTorch (imported lazily so the service starts without it).
     """
+    img = img.convert("RGB")
     img = apply_vegetation_mask(img)  # zero out soil/shadows before model sees the image
     try:
         import torch
     except ImportError:
         raise RuntimeError("PyTorch is required for inference")
 
-    img_resized = img.resize((INPUT_SIZE, INPUT_SIZE), Image.BILINEAR)
+    img_resized = img.resize((512, 512), Image.LANCZOS)
     arr = np.array(img_resized, dtype=np.float32) / 255.0
     mean = np.array(MEAN, dtype=np.float32)
     std = np.array(STD, dtype=np.float32)
