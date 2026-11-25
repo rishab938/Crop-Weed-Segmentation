@@ -77,6 +77,23 @@ export default function NewAnalysisPage() {
     navigate('/projects');
   };
 
+  async function resizeImageFile(file, maxDim = 1024) {
+    return new Promise((resolve) => {
+      const img = new window.Image();
+      const url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(maxDim / img.width, maxDim / img.height, 1);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(img.width * scale);
+        canvas.height = Math.round(img.height * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(url);
+        canvas.toBlob(resolve, 'image/jpeg', 0.85);
+      };
+      img.src = url;
+    });
+  }
+
   const handleStartAnalysis = async () => {
     // Use same-origin relative URLs (proxied to :8000 in Vite dev, served by FastAPI on Render)
     const BACKEND = "";
@@ -133,7 +150,10 @@ export default function NewAnalysisPage() {
     if (stitchEnabled && files.length > 1) {
       // Call stitching endpoint first
       const stitchForm = new FormData();
-      files.forEach(f => stitchForm.append('files', f.file, f.name));
+      for (const f of files) {
+        const resized = await resizeImageFile(f.file);
+        stitchForm.append('files', resized, f.name);
+      }
       try {
         const stitchResp = await fetch(`${BACKEND}/api/v1/stitch`, {
           method: 'POST',
@@ -148,15 +168,24 @@ export default function NewAnalysisPage() {
         } else {
           // Stitch failed – fall back to original per‑image inference
           addToast('Could not stitch — running analysis on images separately', 'warning');
-          files.forEach(f => formData.append('images', f.file, f.name));
+          for (const f of files) {
+            const resized = await resizeImageFile(f.file);
+            formData.append('images', resized, f.name);
+          }
         }
       } catch (e) {
         addToast('Stitch request failed — analyzing individually', 'warning');
-        files.forEach(f => formData.append('images', f.file, f.name));
+        for (const f of files) {
+          const resized = await resizeImageFile(f.file);
+          formData.append('images', resized, f.name);
+        }
       }
     } else {
-      // No stitching – send all original files
-      files.forEach(f => formData.append('images', f.file, f.name));
+      // No stitching – send resized files
+      for (const f of files) {
+        const resized = await resizeImageFile(f.file);
+        formData.append('images', resized, f.name);
+      }
     }
 
     // Try to call the real backend inference API

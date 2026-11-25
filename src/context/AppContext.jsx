@@ -78,15 +78,8 @@ export function AppProvider({ children }) {
     });
   };
 
-  const [activeImage, setActiveImage] = useState(() => {
-    return sessionStorage.getItem('cw-active-image') || null;
-  });
-  const [activeImages, setActiveImages] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('cw-active-images');
-      return saved ? JSON.parse(saved) : [];
-    } catch { return []; }
-  });
+  const [activeImage, setActiveImage] = useState(null);
+  const [activeImages, setActiveImages] = useState([]);
   const [activeProjectName, setActiveProjectName] = useState(() => {
     return sessionStorage.getItem('cw-active-project-name') || '';
   });
@@ -94,50 +87,19 @@ export function AppProvider({ children }) {
     return sessionStorage.getItem('cw-active-field-name') || '';
   });
 
-  // Real model analysis results — populated when the backend runs inference
-  const [analysisResult, setAnalysisResult] = useState(() => {
-    try {
-      const saved = sessionStorage.getItem('cw-analysis-result');
-      return saved ? JSON.parse(saved) : null;
-    } catch { return null; }
-  });
+  // Real model analysis results — kept in memory only (no sessionStorage/localStorage writes)
+  const [analysisResult, setAnalysisResult] = useState(null);
 
   const storeAnalysisResult = (result) => {
     setAnalysisResult(result);
-    try {
-      if (result) {
-        // Strip large base64 image data before persisting to sessionStorage
-        // to avoid QuotaExceededError. Overlay images stay in memory only.
-        const slim = { ...result };
-        delete slim.overlay_data_uri;
-        if (slim.images) {
-          slim.images = slim.images.map(({ overlay_data_uri, ...rest }) => rest);
-        }
-        sessionStorage.setItem('cw-analysis-result', JSON.stringify(slim));
-      } else {
-        sessionStorage.removeItem('cw-analysis-result');
-      }
-    } catch (e) { console.warn('Could not persist analysis result', e); }
   };
 
   const setAnalysisContext = ({ image, images, projectName, fieldName }) => {
     if (image !== undefined) {
       setActiveImage(image);
-      try {
-        if (image) sessionStorage.setItem('cw-active-image', image);
-        else sessionStorage.removeItem('cw-active-image');
-      } catch (e) {
-        console.warn('Storage quota warning', e);
-      }
     }
     if (images !== undefined) {
       setActiveImages(images);
-      try {
-        if (images && images.length) sessionStorage.setItem('cw-active-images', JSON.stringify(images));
-        else sessionStorage.removeItem('cw-active-images');
-      } catch (e) {
-        console.warn('Storage quota warning', e);
-      }
     }
     if (projectName !== undefined) {
       setActiveProjectName(projectName);
